@@ -1,5 +1,4 @@
-﻿
-using Akka.Actor;
+﻿using Akka.Actor;
 using Akka.Cluster.Hosting;
 using Akka.Cluster.Tools.PublishSubscribe;
 using Akka.Hosting;
@@ -12,25 +11,22 @@ using Petabridge.Cmd.Remote;
 public partial class Program
 {
     static string pubSubSystem = "PubSubSystem";
-    static int port = 8110;
-    public static IActorRef pubsub;
-    public static IActorRef publisherActor;
     public static void Main(string[] args)
     {
-        Console.WriteLine("SeedApp");
+        Console.WriteLine("NonSeedApp");
 
-        var appBuilder = new HostBuilder();
-        appBuilder.ConfigureServices((context, service) =>
+        var builder = new HostBuilder();
+        builder.ConfigureServices((context, service) =>
         {
             service.AddAkka(pubSubSystem, options =>
             {
                 options
-                    .WithRemoting("localhost", port)
+                    .WithRemoting("Localhost", 0)
                     .WithClustering(new ClusterOptions
                     {
-                        Roles = new string[] { "Publisher" },
+                        Roles = new string[] { "Subscriber" },
                         SeedNodes = new[] {
-                        Address.Parse($"akka.tcp://{pubSubSystem}@localhost:{port}")
+                        Address.Parse($"akka.tcp://{pubSubSystem}@localhost:8110")
                         }
                     })
                     .AddPetabridgeCmd(cmd =>
@@ -40,28 +36,18 @@ public partial class Program
                         cmd.RegisterCommandPalette(ClusterCommands.Instance);
                     })
                     .StartActors((actorSystem, actorRegistery) =>
-                    {
-                        pubsub = DistributedPubSub.Get(actorSystem).Mediator;
-                        publisherActor = actorSystem.ActorOf<Publisher>("Publisher");
+                    {                        
+                        actorSystem.ActorOf<Subscriber>("Subscriber01");
+                        actorSystem.ActorOf<Subscriber>("Subscriber02");
+                        actorSystem.ActorOf<Subscriber>("Subscriber03");
+                        actorSystem.ActorOf<Subscriber>("Subscriber04");
                     });
             });
-
         });
 
+        builder.Build().Run();
 
-        var app = appBuilder.Build();
-        app.RunAsync();
-
-        Thread.Sleep(2000);
-
-        while (true)
-        {
-            var str = Console.ReadLine();
-            if (str.Equals("exit", StringComparison.OrdinalIgnoreCase))
-                break;
-            publisherActor.Tell(str);
-        }
-
-
+        Console.ReadLine();
     }
+
 }
